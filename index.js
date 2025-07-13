@@ -57,7 +57,7 @@ app.post('/productos', async (req, res) => {
     const [diaTexto, , mesTexto] = fechaTexto.toLowerCase().split(' ');
     const dia = diaTexto.padStart(2, '0');
     const mes = meses[mesTexto];
-    const anio = new Date().getFullYear(); // o usar 2025 fijo si preferís
+    const anio = new Date().getFullYear();
 
     if (!mes) throw new Error('Mes inválido');
     fechaOrdenable = `${dia}/${mes}/${anio}`;
@@ -86,5 +86,49 @@ app.post('/productos', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`🚀 Servidor escuchando en puerto ${PORT}`));
+// 🟡 Cambiar estado de producto
+app.patch('/productos/estado', async (req, res) => {
+  const { producto, estado } = req.body;
 
+  if (!producto || !estado) {
+    return res.status(400).send('Faltan datos');
+  }
+
+  try {
+    const client = await auth.getClient();
+    const sheets = google.sheets({ version: 'v4', auth: client });
+
+    // Leer todas las filas
+    const result = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: 'Hoja1!A2:D',
+    });
+
+    const filas = result.data.values || [];
+
+    // Buscar la fila donde coincida el producto
+    const filaIndex = filas.findIndex(row => row[0] === producto);
+
+    if (filaIndex === -1) {
+      return res.status(404).send('Producto no encontrado');
+    }
+
+    // La fila real (en Sheets) es +2 (por encabezado y base 1)
+    const rango = `Hoja1!D${filaIndex + 2}`;
+
+    // Actualizar el estado
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: rango,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [[estado]] },
+    });
+
+    res.send('✅ Estado actualizado');
+  } catch (err) {
+    console.error('❌ Error al cambiar estado:', err.message);
+    res.status(500).send('Error interno');
+  }
+});
+
+app.listen(PORT, () => console.log(`🚀 Servidor escuchando en puerto ${PORT}`));
