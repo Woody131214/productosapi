@@ -44,7 +44,26 @@ app.get('/productos', async (req, res) => {
 
 // 🟢 Agregar producto
 app.post('/productos', async (req, res) => {
-  const { producto, fechaTexto, fechaOrdenable } = req.body;
+  const { producto, fechaTexto } = req.body;
+
+  const meses = {
+    enero: '01', febrero: '02', marzo: '03', abril: '04', mayo: '05', junio: '06',
+    julio: '07', agosto: '08', septiembre: '09', octubre: '10', noviembre: '11', diciembre: '12'
+  };
+
+  // 🧠 Convertir "25 de julio" → "25/07/2025"
+  let fechaOrdenable = '';
+  try {
+    const [diaTexto, , mesTexto] = fechaTexto.toLowerCase().split(' ');
+    const dia = diaTexto.padStart(2, '0');
+    const mes = meses[mesTexto];
+    const anio = new Date().getFullYear(); // o usar 2025 fijo si preferís
+
+    if (!mes) throw new Error('Mes inválido');
+    fechaOrdenable = `${dia}/${mes}/${anio}`;
+  } catch (err) {
+    console.warn('⚠️ Error al convertir fechaTexto:', err.message);
+  }
 
   try {
     const client = await auth.getClient();
@@ -56,7 +75,7 @@ app.post('/productos', async (req, res) => {
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       requestBody: {
-        values: [[producto, fechaTexto, fechaOrdenable, 'EN GONDOLA']],
+        values: [[producto, fechaTexto, fechaOrdenable, 'EN GÓNDOLA']],
       },
     });
 
@@ -68,3 +87,4 @@ app.post('/productos', async (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`🚀 Servidor escuchando en puerto ${PORT}`));
+
