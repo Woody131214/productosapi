@@ -14,17 +14,34 @@ const auth = new google.auth.GoogleAuth({
   scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 
-const SHEET_ID = process.env.SHEET_ID;
+const SHEET_IDS = {
+  'Dpto90': '1tgM_Pcy6WBj4LjvMBlLKS2crI-wF3x8jNboInkU0gXY',
+  'Dpto01-92': '1_V5Iy48ZFrcKK0B296yfPkQEDZHpkpTA85i3Kvl1vtA',
+  'Dpto95': '1Nh2_L6wdNKELnfQijfZ72TOfHoGfY9UTzHFaW8hNnMA',
+  'Dpto96': '1uyYtZ9UaqV1n81rBaucG6Wbik80uIthPNXhGMIlDu-Y',
+};
+
+
+// Middleware para validar el departamento
+function validarDpto(req, res, next) {
+  const dpto = req.query.dpto || req.body.dpto;
+  if (!SHEET_IDS[dpto]) {
+    return res.status(400).send('Departamento inválido o faltante');
+  }
+  req.sheetId = SHEET_IDS[dpto];
+  req.sheetName = dpto;
+  next();
+}
 
 // 🟢 Obtener productos
-app.get('/productos', async (req, res) => {
+app.get('/productos', validarDpto, async (req, res) => {
   try {
     const client = await auth.getClient();
     const sheets = google.sheets({ version: 'v4', auth: client });
 
     const result = await sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
-      range: 'Hoja1!A2:D',
+      spreadsheetId: req.sheetId,
+      range: `${req.sheetName}!A2:D`,
     });
 
     const valores = result.data.values || [];
@@ -43,7 +60,7 @@ app.get('/productos', async (req, res) => {
 });
 
 // 🟢 Agregar producto
-app.post('/productos', async (req, res) => {
+app.post('/productos', validarDpto, async (req, res) => {
   const { producto, fechaTexto } = req.body;
 
   const meses = {
@@ -51,7 +68,6 @@ app.post('/productos', async (req, res) => {
     julio: '07', agosto: '08', septiembre: '09', octubre: '10', noviembre: '11', diciembre: '12'
   };
 
-  // 🧠 Convertir "25 de julio" → "25/07/2025"
   let fechaOrdenable = '';
   try {
     const [diaTexto, , mesTexto] = fechaTexto.toLowerCase().split(' ');
@@ -70,8 +86,8 @@ app.post('/productos', async (req, res) => {
     const sheets = google.sheets({ version: 'v4', auth: client });
 
     await sheets.spreadsheets.values.append({
-      spreadsheetId: SHEET_ID,
-      range: 'Hoja1!A:D',
+      spreadsheetId: req.sheetId,
+      range: `${req.sheetName}!A:D`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       requestBody: {
@@ -87,7 +103,7 @@ app.post('/productos', async (req, res) => {
 });
 
 // 🟡 Cambiar estado de producto
-app.patch('/productos/estado', async (req, res) => {
+app.patch('/productos/estado', validarDpto, async (req, res) => {
   const { producto, estado } = req.body;
 
   if (!producto || !estado) {
@@ -98,28 +114,23 @@ app.patch('/productos/estado', async (req, res) => {
     const client = await auth.getClient();
     const sheets = google.sheets({ version: 'v4', auth: client });
 
-    // Leer todas las filas
     const result = await sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
-      range: 'Hoja1!A2:D',
+      spreadsheetId: req.sheetId,
+      range: `${req.sheetName}!A2:D`,
     });
 
     const filas = result.data.values || [];
-
-    // Buscar la fila donde coincida el producto
     const filaIndex = filas.findIndex(row => row[0] === producto);
 
     if (filaIndex === -1) {
       return res.status(404).send('Producto no encontrado');
     }
 
-    // La fila real (en Sheets) es +2 (por encabezado y base 1)
-    const rango = `Hoja1!D${filaIndex + 2}`;
+    const rangeEstado = `${req.sheetName}!D${filaIndex + 2}`;
 
-    // Actualizar el estado
     await sheets.spreadsheets.values.update({
-      spreadsheetId: SHEET_ID,
-      range: rango,
+      spreadsheetId: req.sheetId,
+      range: rangeEstado,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [[estado]] },
     });
