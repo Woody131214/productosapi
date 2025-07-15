@@ -16,7 +16,7 @@ const auth = new google.auth.GoogleAuth({
 
 const SHEET_IDS = {
   'Dpto90': '1tgM_Pcy6WBj4LjvMBlLKS2crI-wF3x8jNboInkU0gXY',
-  'Dpto01-92': '1_V5Iy48ZFrcKK0B296yfPkQEDZHpkpTA85i3Kvl1vtA',
+  'Dpto0192': '1_V5Iy48ZFrcKK0B296yfPkQEDZHpkpTA85i3Kvl1vtA',
   'Dpto95': '1Nh2_L6wdNKELnfQijfZ72TOfHoGfY9UTzHFaW8hNnMA',
   'Dpto96': '1uyYtZ9UaqV1n81rBaucG6Wbik80uIthPNXhGMIlDu-Y',
 };
