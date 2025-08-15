@@ -32,12 +32,37 @@ function validarDpto(req, res, next) {
   next();
 }
 
-// 🟢 Obtener productos
+// -------------------- GET productos --------------------
 app.get('/productos', validarDpto, async (req, res) => {
   try {
     const client = await auth.getClient();
     const sheets = google.sheets({ version: 'v4', auth: client });
 
+    if (req.sheetName === 'Dpto13') {
+      // Lógica especial Dpto13
+      const result = await sheets.spreadsheets.values.get({
+        spreadsheetId: req.sheetId,
+        range: `${req.sheetName}!A2:J`, // Todas las columnas de Dpto13
+      });
+
+      const valores = result.data.values || [];
+      const productos = valores.map(([descripcion, codigo_barra, item, nro_lote, ubicacion, nro_bin, fecha_vencimiento, estado, fecha_agregado, notificado]) => ({
+        descripcion,
+        codigo_barra,
+        item,
+        nro_lote,
+        ubicacion,
+        nro_bin,
+        fecha_vencimiento,
+        estado,
+        fecha_agregado,
+        notificado
+      }));
+
+      return res.json(productos);
+    }
+
+    // Lógica estándar para otros departamentos
     const result = await sheets.spreadsheets.values.get({
       spreadsheetId: req.sheetId,
       range: `${req.sheetName}!A2:D`,
@@ -53,19 +78,19 @@ app.get('/productos', validarDpto, async (req, res) => {
 
     res.json(productos);
   } catch (err) {
-    console.error('❌ Error:', err.message);
+    console.error('❌ Error GET productos:', err.message);
     res.status(500).send('Error interno');
   }
 });
 
-// 🟢 Agregar producto
+// -------------------- POST agregar producto --------------------
 app.post('/productos', validarDpto, async (req, res) => {
   try {
     const client = await auth.getClient();
     const sheets = google.sheets({ version: 'v4', auth: client });
 
-    // 📌 Si es Dpto13, usamos la lógica especial
     if (req.sheetName === 'Dpto13') {
+      // Lógica especial Dpto13
       const {
         descripcion,
         codigo_barra,
@@ -81,7 +106,7 @@ app.post('/productos', validarDpto, async (req, res) => {
 
       await sheets.spreadsheets.values.append({
         spreadsheetId: req.sheetId,
-        range: `${req.sheetName}!A:J`, // Ajustar según columnas de Dpto13
+        range: `${req.sheetName}!A:J`,
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
         requestBody: {
@@ -103,7 +128,7 @@ app.post('/productos', validarDpto, async (req, res) => {
       return res.send('✅ Producto Dpto13 agregado');
     }
 
-    // 📌 Lógica original para el resto de departamentos
+    // Lógica estándar para otros departamentos
     const { producto, fechaTexto } = req.body;
 
     const meses = {
@@ -136,12 +161,12 @@ app.post('/productos', validarDpto, async (req, res) => {
 
     res.send('✅ Producto agregado');
   } catch (err) {
-    console.error('❌ Error al agregar producto:', err.message);
+    console.error('❌ Error POST productos:', err.message);
     res.status(500).send('Error interno');
   }
 });
 
-// 🟡 Cambiar estado de producto
+// -------------------- PATCH cambiar estado --------------------
 app.patch('/productos/estado', validarDpto, async (req, res) => {
   const { producto, estado } = req.body;
 
@@ -153,6 +178,33 @@ app.patch('/productos/estado', validarDpto, async (req, res) => {
     const client = await auth.getClient();
     const sheets = google.sheets({ version: 'v4', auth: client });
 
+    if (req.sheetName === 'Dpto13') {
+      // Lógica especial Dpto13
+      const result = await sheets.spreadsheets.values.get({
+        spreadsheetId: req.sheetId,
+        range: `${req.sheetName}!A2:J`,
+      });
+
+      const filas = result.data.values || [];
+      const filaIndex = filas.findIndex(row => row[1] === producto || row[0] === producto); // Puedes ajustar según qué columna uses como identificador
+
+      if (filaIndex === -1) {
+        return res.status(404).send('Producto no encontrado');
+      }
+
+      const rangeEstado = `${req.sheetName}!H${filaIndex + 2}`; // Columna H = estado
+
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: req.sheetId,
+        range: rangeEstado,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [[estado]] },
+      });
+
+      return res.send('✅ Estado Dpto13 actualizado');
+    }
+
+    // Lógica estándar para otros departamentos
     const result = await sheets.spreadsheets.values.get({
       spreadsheetId: req.sheetId,
       range: `${req.sheetName}!A2:D`,
@@ -176,7 +228,7 @@ app.patch('/productos/estado', validarDpto, async (req, res) => {
 
     res.send('✅ Estado actualizado');
   } catch (err) {
-    console.error('❌ Error al cambiar estado:', err.message);
+    console.error('❌ Error PATCH estado:', err.message);
     res.status(500).send('Error interno');
   }
 });
