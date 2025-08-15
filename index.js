@@ -21,7 +21,6 @@ const SHEET_IDS = {
   'Dpto13': '1jlSVWprHfmcJlTfLrxVKkzIRe9mj-bCfhQxItu7CBE8',
 };
 
-
 // Middleware para validar el departamento
 function validarDpto(req, res, next) {
   const dpto = req.query.dpto || req.body.dpto;
@@ -61,29 +60,69 @@ app.get('/productos', validarDpto, async (req, res) => {
 
 // 🟢 Agregar producto
 app.post('/productos', validarDpto, async (req, res) => {
-  const { producto, fechaTexto } = req.body;
-
-  const meses = {
-    enero: '01', febrero: '02', marzo: '03', abril: '04', mayo: '05', junio: '06',
-    julio: '07', agosto: '08', septiembre: '09', octubre: '10', noviembre: '11', diciembre: '12'
-  };
-
-  let fechaOrdenable = '';
-  try {
-    const [diaTexto, , mesTexto] = fechaTexto.toLowerCase().split(' ');
-    const dia = diaTexto.padStart(2, '0');
-    const mes = meses[mesTexto];
-    const anio = new Date().getFullYear();
-
-    if (!mes) throw new Error('Mes inválido');
-    fechaOrdenable = `${dia}/${mes}/${anio}`;
-  } catch (err) {
-    console.warn('⚠️ Error al convertir fechaTexto:', err.message);
-  }
-
   try {
     const client = await auth.getClient();
     const sheets = google.sheets({ version: 'v4', auth: client });
+
+    // 📌 Si es Dpto13, usamos la lógica especial
+    if (req.sheetName === 'Dpto13') {
+      const {
+        descripcion,
+        codigo_barra,
+        item,
+        nro_lote,
+        ubicacion,
+        nro_bin,
+        fecha_vencimiento,
+        estado,
+        fecha_agregado,
+        notificado
+      } = req.body;
+
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: req.sheetId,
+        range: `${req.sheetName}!A:J`, // Ajustar según columnas de Dpto13
+        valueInputOption: 'USER_ENTERED',
+        insertDataOption: 'INSERT_ROWS',
+        requestBody: {
+          values: [[
+            descripcion,
+            codigo_barra,
+            item,
+            nro_lote,
+            ubicacion,
+            nro_bin,
+            fecha_vencimiento,
+            estado || 'EN DEPOSITO',
+            fecha_agregado || new Date().toISOString(),
+            notificado === undefined ? false : notificado
+          ]],
+        },
+      });
+
+      return res.send('✅ Producto Dpto13 agregado');
+    }
+
+    // 📌 Lógica original para el resto de departamentos
+    const { producto, fechaTexto } = req.body;
+
+    const meses = {
+      enero: '01', febrero: '02', marzo: '03', abril: '04', mayo: '05', junio: '06',
+      julio: '07', agosto: '08', septiembre: '09', octubre: '10', noviembre: '11', diciembre: '12'
+    };
+
+    let fechaOrdenable = '';
+    try {
+      const [diaTexto, , mesTexto] = fechaTexto.toLowerCase().split(' ');
+      const dia = diaTexto.padStart(2, '0');
+      const mes = meses[mesTexto];
+      const anio = new Date().getFullYear();
+
+      if (!mes) throw new Error('Mes inválido');
+      fechaOrdenable = `${dia}/${mes}/${anio}`;
+    } catch (err) {
+      console.warn('⚠️ Error al convertir fechaTexto:', err.message);
+    }
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: req.sheetId,
@@ -143,4 +182,3 @@ app.patch('/productos/estado', validarDpto, async (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`🚀 Servidor escuchando en puerto ${PORT}`));
-
