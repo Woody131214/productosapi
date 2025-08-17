@@ -61,24 +61,19 @@ app.get('/productos', validarDpto, async (req, res) => {
       return res.json(productos);
     }
 
-    // Para otros dptos
-    const range = req.sheetName === 'Dpto90' ? `${req.sheetName}!A2:C` : `${req.sheetName}!A2:D`;
+    // Otros departamentos
     const result = await sheets.spreadsheets.values.get({
       spreadsheetId: req.sheetId,
-      range,
+      range: `${req.sheetName}!A2:D`,
     });
 
     const valores = result.data.values || [];
-    const productos = valores.map(row => {
-      if (req.sheetName === 'Dpto90') {
-        const producto = row[0] || '';
-        const fechaTexto = row[2] || ''; // columna C
-        return { producto, fechaTexto, fechaOrdenable: '', estado: 'EN GÓNDOLA' };
-      } else {
-        const [producto, fechaTexto, fechaOrdenable, estado] = row;
-        return { producto, fechaTexto, fechaOrdenable, estado };
-      }
-    });
+    const productos = valores.map(([producto, fechaTexto, fechaOrdenable, estado]) => ({
+      producto,
+      fechaTexto,
+      fechaOrdenable,
+      estado,
+    }));
 
     res.json(productos);
   } catch (err) {
@@ -120,19 +115,19 @@ app.post('/productos', validarDpto, async (req, res) => {
       return res.send('✅ Producto Dpto13 agregado');
     }
 
+    // Otros departamentos
     const { producto, fechaTexto } = req.body;
-
-    // Para Dpto90 la fecha va directo a la columna C
-    const values = req.sheetName === 'Dpto90'
-      ? [[producto, '', fechaTexto]] // A=producto, B vacía, C=fecha
-      : [[producto, fechaTexto, '', 'EN GÓNDOLA']]; // otros dptos
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: req.sheetId,
-      range: req.sheetName === 'Dpto90' ? `${req.sheetName}!A:C` : `${req.sheetName}!A:D`,
+      range: `${req.sheetName}!A:D`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
-      requestBody: { values },
+      requestBody: {
+        values: req.sheetName === 'Dpto90'
+          ? [[producto, '', fechaTexto, 'EN GÓNDOLA']] // Columna C = fecha, D = estado
+          : [[producto, fechaTexto, '', 'EN GÓNDOLA']],
+      },
     });
 
     res.send('✅ Producto agregado');
@@ -178,10 +173,10 @@ app.patch('/productos/estado', validarDpto, async (req, res) => {
       return res.send('✅ Estado Dpto13 actualizado');
     }
 
-    // Para otros dptos
+    // Otros departamentos
     const result = await sheets.spreadsheets.values.get({
       spreadsheetId: req.sheetId,
-      range: req.sheetName === 'Dpto90' ? `${req.sheetName}!A2:C` : `${req.sheetName}!A2:D`,
+      range: `${req.sheetName}!A2:D`,
     });
 
     const filas = result.data.values || [];
@@ -191,10 +186,7 @@ app.patch('/productos/estado', validarDpto, async (req, res) => {
       return res.status(404).send('Producto no encontrado');
     }
 
-    const rangeEstado = req.sheetName === 'Dpto90'
-      ? `${req.sheetName}!D${filaIndex + 2}` // Dpto90: estado en D
-      : `${req.sheetName}!D${filaIndex + 2}`;
-
+    const rangeEstado = `${req.sheetName}!D${filaIndex + 2}`;
     await sheets.spreadsheets.values.update({
       spreadsheetId: req.sheetId,
       range: rangeEstado,
@@ -210,5 +202,3 @@ app.patch('/productos/estado', validarDpto, async (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`🚀 Servidor escuchando en puerto ${PORT}`));
-
-
