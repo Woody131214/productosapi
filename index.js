@@ -39,10 +39,9 @@ app.get('/productos', validarDpto, async (req, res) => {
     const sheets = google.sheets({ version: 'v4', auth: client });
 
     if (req.sheetName === 'Dpto13') {
-      // Lógica especial Dpto13
       const result = await sheets.spreadsheets.values.get({
         spreadsheetId: req.sheetId,
-        range: `${req.sheetName}!A2:J`, // Todas las columnas de Dpto13
+        range: `${req.sheetName}!A2:J`,
       });
 
       const valores = result.data.values || [];
@@ -62,19 +61,24 @@ app.get('/productos', validarDpto, async (req, res) => {
       return res.json(productos);
     }
 
-    // Lógica estándar para otros departamentos
+    // Para otros dptos
+    const range = req.sheetName === 'Dpto90' ? `${req.sheetName}!A2:C` : `${req.sheetName}!A2:D`;
     const result = await sheets.spreadsheets.values.get({
       spreadsheetId: req.sheetId,
-      range: `${req.sheetName}!A2:D`,
+      range,
     });
 
     const valores = result.data.values || [];
-    const productos = valores.map(([producto, fechaTexto, fechaOrdenable, estado]) => ({
-      producto,
-      fechaTexto,
-      fechaOrdenable,
-      estado,
-    }));
+    const productos = valores.map(row => {
+      if (req.sheetName === 'Dpto90') {
+        const producto = row[0] || '';
+        const fechaTexto = row[2] || ''; // columna C
+        return { producto, fechaTexto, fechaOrdenable: '', estado: 'EN GÓNDOLA' };
+      } else {
+        const [producto, fechaTexto, fechaOrdenable, estado] = row;
+        return { producto, fechaTexto, fechaOrdenable, estado };
+      }
+    });
 
     res.json(productos);
   } catch (err) {
@@ -90,19 +94,7 @@ app.post('/productos', validarDpto, async (req, res) => {
     const sheets = google.sheets({ version: 'v4', auth: client });
 
     if (req.sheetName === 'Dpto13') {
-      // Lógica especial Dpto13
-      const {
-        descripcion,
-        codigo_barra,
-        item,
-        nro_lote,
-        ubicacion,
-        nro_bin,
-        fecha_vencimiento,
-        estado,
-        fecha_agregado,
-        notificado
-      } = req.body;
+      const { descripcion, codigo_barra, item, nro_lote, ubicacion, nro_bin, fecha_vencimiento, estado, fecha_agregado, notificado } = req.body;
 
       await sheets.spreadsheets.values.append({
         spreadsheetId: req.sheetId,
@@ -128,35 +120,19 @@ app.post('/productos', validarDpto, async (req, res) => {
       return res.send('✅ Producto Dpto13 agregado');
     }
 
-    // Lógica estándar para otros departamentos
     const { producto, fechaTexto } = req.body;
 
-    const meses = {
-      enero: '01', febrero: '02', marzo: '03', abril: '04', mayo: '05', junio: '06',
-      julio: '07', agosto: '08', septiembre: '09', octubre: '10', noviembre: '11', diciembre: '12'
-    };
-
-    let fechaOrdenable = '';
-    try {
-      const [diaTexto, , mesTexto] = fechaTexto.toLowerCase().split(' ');
-      const dia = diaTexto.padStart(2, '0');
-      const mes = meses[mesTexto];
-      const anio = new Date().getFullYear();
-
-      if (!mes) throw new Error('Mes inválido');
-      fechaOrdenable = `${dia}/${mes}/${anio}`;
-    } catch (err) {
-      console.warn('⚠️ Error al convertir fechaTexto:', err.message);
-    }
+    // Para Dpto90 la fecha va directo a la columna C
+    const values = req.sheetName === 'Dpto90'
+      ? [[producto, '', fechaTexto]] // A=producto, B vacía, C=fecha
+      : [[producto, fechaTexto, '', 'EN GÓNDOLA']]; // otros dptos
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: req.sheetId,
-      range: `${req.sheetName}!A:D`,
+      range: req.sheetName === 'Dpto90' ? `${req.sheetName}!A:C` : `${req.sheetName}!A:D`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
-      requestBody: {
-        values: [[producto, fechaTexto, fechaOrdenable, 'EN GÓNDOLA']],
-      },
+      requestBody: { values },
     });
 
     res.send('✅ Producto agregado');
@@ -179,21 +155,19 @@ app.patch('/productos/estado', validarDpto, async (req, res) => {
     const sheets = google.sheets({ version: 'v4', auth: client });
 
     if (req.sheetName === 'Dpto13') {
-      // Lógica especial Dpto13
       const result = await sheets.spreadsheets.values.get({
         spreadsheetId: req.sheetId,
         range: `${req.sheetName}!A2:J`,
       });
 
       const filas = result.data.values || [];
-      const filaIndex = filas.findIndex(row => row[1] === producto || row[0] === producto); // Puedes ajustar según qué columna uses como identificador
+      const filaIndex = filas.findIndex(row => row[1] === producto || row[0] === producto);
 
       if (filaIndex === -1) {
         return res.status(404).send('Producto no encontrado');
       }
 
-      const rangeEstado = `${req.sheetName}!H${filaIndex + 2}`; // Columna H = estado
-
+      const rangeEstado = `${req.sheetName}!H${filaIndex + 2}`;
       await sheets.spreadsheets.values.update({
         spreadsheetId: req.sheetId,
         range: rangeEstado,
@@ -204,10 +178,10 @@ app.patch('/productos/estado', validarDpto, async (req, res) => {
       return res.send('✅ Estado Dpto13 actualizado');
     }
 
-    // Lógica estándar para otros departamentos
+    // Para otros dptos
     const result = await sheets.spreadsheets.values.get({
       spreadsheetId: req.sheetId,
-      range: `${req.sheetName}!A2:D`,
+      range: req.sheetName === 'Dpto90' ? `${req.sheetName}!A2:C` : `${req.sheetName}!A2:D`,
     });
 
     const filas = result.data.values || [];
@@ -217,7 +191,9 @@ app.patch('/productos/estado', validarDpto, async (req, res) => {
       return res.status(404).send('Producto no encontrado');
     }
 
-    const rangeEstado = `${req.sheetName}!D${filaIndex + 2}`;
+    const rangeEstado = req.sheetName === 'Dpto90'
+      ? `${req.sheetName}!D${filaIndex + 2}` // Dpto90: estado en D
+      : `${req.sheetName}!D${filaIndex + 2}`;
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: req.sheetId,
@@ -234,3 +210,5 @@ app.patch('/productos/estado', validarDpto, async (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`🚀 Servidor escuchando en puerto ${PORT}`));
+
+
