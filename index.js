@@ -84,6 +84,8 @@ app.get('/productos', validarDpto, async (req, res) => {
 
 // -------------------- POST agregar producto --------------------
 app.post('/productos', validarDpto, async (req, res) => {
+  console.log("📥 Body recibido:", req.body); // 👈 Debug
+
   try {
     const client = await auth.getClient();
     const sheets = google.sheets({ version: 'v4', auth: client });
@@ -137,7 +139,7 @@ app.post('/productos', validarDpto, async (req, res) => {
       insertDataOption: 'INSERT_ROWS',
       requestBody: {
         values: req.sheetName === 'Dpto90'
-          ? [[producto, '', fechaTexto, 'EN GÓNDOLA']] // Columna C = fecha, D = estado
+          ? [[producto, '', fechaTexto, 'EN GÓNDOLA']]
           : [[producto, fechaTexto, '', 'EN GÓNDOLA']],
       },
     });
@@ -214,3 +216,5 @@ app.patch('/productos/estado', validarDpto, async (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`🚀 Servidor escuchando en puerto ${PORT}`));
+
+
