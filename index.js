@@ -89,7 +89,19 @@ app.post('/productos', validarDpto, async (req, res) => {
     const sheets = google.sheets({ version: 'v4', auth: client });
 
     if (req.sheetName === 'Dpto13') {
-      const { descripcion, codigo_barra, item, nro_lote, ubicacion, nro_bin, fecha_vencimiento, estado, fecha_agregado, notificado } = req.body;
+      // ✅ Campos opcionales: si no vienen en el body, se completan con ""
+      const {
+        descripcion = "",
+        codigo_barra = "",
+        item = "",
+        nro_lote = "",
+        ubicacion = "",
+        nro_bin = "",
+        fecha_vencimiento = "",
+        estado = "EN DEPOSITO",
+        fecha_agregado = new Date().toISOString(),
+        notificado = "FALSE"
+      } = req.body;
 
       await sheets.spreadsheets.values.append({
         spreadsheetId: req.sheetId,
@@ -105,9 +117,9 @@ app.post('/productos', validarDpto, async (req, res) => {
             ubicacion,
             nro_bin,
             fecha_vencimiento,
-            estado || 'EN DEPOSITO',
-            fecha_agregado || new Date().toISOString(),
-            notificado === undefined ? false : notificado
+            estado,
+            fecha_agregado,
+            notificado
           ]],
         },
       });
@@ -116,7 +128,7 @@ app.post('/productos', validarDpto, async (req, res) => {
     }
 
     // Otros departamentos
-    const { producto, fechaTexto } = req.body;
+    const { producto = "", fechaTexto = "" } = req.body;
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: req.sheetId,
